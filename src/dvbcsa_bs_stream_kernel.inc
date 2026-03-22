@@ -1,3 +1,21 @@
+static dvbcsa_bs_word_t DVBCSA_INLINE inline
+dvbcsa_bs_stream_sbox0(struct dvbcsa_bs_stream_regs_s *regs,
+                       dvbcsa_bs_word_t *extra_B, dvbcsa_bs_word_t tmp4)
+{
+  int i;
+  for (i = 0; i < 4; i++)
+  {
+    dvbcsa_bs_word_t tmp0 = BS_XOR(regs->Z[i], regs->E[i]);
+    dvbcsa_bs_word_t tmp1 = BS_AND(regs->Z[i], regs->E[i]);
+    dvbcsa_bs_word_t tmp2 = regs->F[i];
+    regs->F[i] = BS_XOR(regs->E[i], BS_AND(regs->q, BS_XOR(regs->Z[i], tmp4)));
+    regs->E[i] = tmp2;
+    regs->D[i] = BS_XOR(extra_B[i], tmp0);
+    tmp4 = BS_OR(tmp1, BS_AND(tmp0, tmp4));
+  }
+  return tmp4;
+}
+
 static void DVBCSA_INLINE inline
 dvbcsa_bs_stream_sbox1(dvbcsa_bs_word_t fa, dvbcsa_bs_word_t fb,
                        dvbcsa_bs_word_t fc, dvbcsa_bs_word_t fd,
@@ -156,63 +174,22 @@ _dvbcsa_bs_stream_cipher_kernel(const int init, struct dvbcsa_bs_stream_regs_s *
             }
 
           // if p=1, rotate left (yes, this is what we're doing)
-          {
-          dvbcsa_bs_word_t tmp0, tmp1, tmp2, tmp3, tmp4;
-
-          tmp3 = B[-1][3];
-          tmp2 = B[-1][2];
-          tmp4 = regs->p;
-          tmp1 = B[-1][1];
-          tmp0 = B[-1][0];
+          dvbcsa_bs_word_t tmp4 = regs->p;
+          dvbcsa_bs_word_t tmp3 = B[-1][3];
+          dvbcsa_bs_word_t tmp2 = B[-1][2];
+          dvbcsa_bs_word_t tmp1 = B[-1][1];
+          dvbcsa_bs_word_t tmp0 = B[-1][0];
           B[-1][3] = BS_XOR (tmp3, BS_AND (BS_XOR (tmp3, tmp2), tmp4));
           B[-1][2] = BS_XOR (tmp2, BS_AND (BS_XOR (tmp2, tmp1), tmp4));
           B[-1][1] = BS_XOR (tmp1, BS_AND (BS_XOR (tmp1, tmp0), tmp4));
           B[-1][0] = BS_XOR (tmp0, BS_AND (BS_XOR (tmp0, tmp3), tmp4));
-          }
 
           // T3 = xor all inputs
           //   D = E ^ Z ^ extra_B
           // T4 = sum, carry of Z + E + r
           //   also E' = F
-          {
-          dvbcsa_bs_word_t tmp0, tmp1, tmp2, tmp3, tmp4;
-
-          tmp0 = BS_XOR (regs->Z[0], regs->E[0]);
-          tmp1 = BS_AND (regs->Z[0], regs->E[0]);
-          tmp2 = regs->F[0];
-          regs->F[0] = BS_XOR (regs->E[0], BS_AND (regs->q, BS_XOR (regs->Z[0], regs->r)));
-          regs->D[0] = BS_XOR (extra_B[0], tmp0);
-          tmp3 = BS_AND (tmp0, regs->r);
-          regs->E[0] = tmp2;
-          tmp4 = BS_OR (tmp1, tmp3);
-
-          tmp0 = BS_XOR (regs->Z[1], regs->E[1]);
-          tmp1 = BS_AND (regs->Z[1], regs->E[1]);
-          tmp2 = regs->F[1];
-          regs->F[1] = BS_XOR (regs->E[1], BS_AND (regs->q, BS_XOR (regs->Z[1], tmp4)));
-          regs->D[1] = BS_XOR (extra_B[1], tmp0);
-          tmp3 = BS_AND (tmp0, tmp4);
-          regs->E[1] = tmp2;
-          tmp4 = BS_OR (tmp1, tmp3);
-
-          tmp0 = BS_XOR (regs->Z[2], regs->E[2]);
-          tmp1 = BS_AND (regs->Z[2], regs->E[2]);
-          tmp2 = regs->F[2];
-          regs->F[2] = BS_XOR (regs->E[2], BS_AND (regs->q, BS_XOR (regs->Z[2], tmp4)));
-          regs->D[2] = BS_XOR (extra_B[2], tmp0);
-          tmp3 = BS_AND (tmp0, tmp4);
-          regs->E[2] = tmp2;
-          tmp4 = BS_OR (tmp1, tmp3);
-
-          tmp0 = BS_XOR (regs->Z[3], regs->E[3]);
-          tmp1 = BS_AND (regs->Z[3], regs->E[3]);
-          tmp2 = regs->F[3];
-          regs->F[3] = BS_XOR (regs->E[3], BS_AND (regs->q, BS_XOR (regs->Z[3], tmp4)));
-          regs->D[3] = BS_XOR (extra_B[3], tmp0);
-          tmp3 = BS_AND (tmp0, tmp4);
-          regs->E[3] = tmp2;
-          regs->r = BS_XOR (regs->r, BS_AND (regs->q, BS_XOR (BS_OR (tmp1, tmp3), regs->r)));   // ultimate carry
-          }
+          tmp4 = dvbcsa_bs_stream_sbox0(regs, extra_B, regs->r);
+          regs->r = BS_XOR (regs->r, BS_AND (regs->q, BS_XOR (tmp4, regs->r)));
 
           dvbcsa_bs_stream_sbox1(A[0][2], A[5][1], A[6][3], A[8][0], A[3][0], &regs->X[0], &regs->Z[2]);
           dvbcsa_bs_stream_sbox2(A[2][2], A[5][3], A[6][0], A[8][1], A[1][1], &regs->X[1], &regs->Z[3]);
